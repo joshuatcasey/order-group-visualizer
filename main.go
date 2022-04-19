@@ -8,11 +8,24 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/buildpacks/pack/pkg/dist"
+	"golang.org/x/exp/slices"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("Please provide the location of a buildpack.toml file\n")
+	if len(os.Args) < 2 || shouldPrintHelp(os.Args) {
+		fmt.Println(`The first parameter must be the filepath of a buildpack.toml in a meta buildpack.
+
+./order-group-visualizer <path/to/buildpack.toml> <format-option> [modifier-options]
+
+Output formats (select one, REQUIRED):
+--table
+--short
+--hist
+
+Output modifiers (zero or more, OPTIONAL):
+--unique-only
+--required-only`)
+		os.Exit(0)
 	}
 
 	buildpackYaml := os.Args[1]
@@ -25,20 +38,104 @@ func main() {
 		log.Fatalf("Could not decode file %s\n", buildpackYaml)
 	}
 
-	buildpackIds := toNestedArray(buildpackDescriptor)
+	buildpackIds := toNestedArray(buildpackDescriptor, shouldPrintRequiredOnly(os.Args), shouldPrintUniqueOnly(os.Args))
 
-	var maxColumnSizes []int
-	maxColumnSizes = findMaxColumnSizes(buildpackIds)
-
-	for i, orderGroup := range buildpackIds {
-		fmt.Printf("Order Group %d:", i+1)
-
-		for j, id := range orderGroup {
-			fmt.Printf(" %-*s", maxColumnSizes[j], id)
-		}
-		fmt.Printf("\n")
+	if shouldPrintTable(os.Args) {
+		printTable(buildpackIds)
 	}
 
+	if shouldPrintShortList(os.Args) {
+		printShortList(buildpackIds)
+	}
+
+	if shouldPrintHistogram(os.Args) {
+		printHistogram(buildpackIds)
+	}
+}
+
+func printHistogram(buildpackIds [][]string) {
+	idToCount := make(map[string]int)
+
+	for _, orderGroup := range buildpackIds {
+		for _, id := range orderGroup {
+			idToCount[id] = idToCount[id] + 1
+		}
+	}
+
+	countToId := make([][]string, 0)
+
+	for id, count := range idToCount {
+		for len(countToId) <= count {
+			countToId = append(countToId, make([]string, 0))
+		}
+
+		countToId[count] = append(countToId[count], id)
+	}
+
+	fmt.Printf("Histogram:\n")
+
+	for i := len(countToId) - 1; i >= 0; i-- {
+		if len(countToId[i]) > 0 {
+			fmt.Printf("%d: %s\n", i, strings.Join(countToId[i], ", "))
+		}
+	}
+}
+
+func shouldPrintHelp(args []string) bool {
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintRequiredOnly(args []string) bool {
+	for _, arg := range args {
+		if arg == "--required-only" {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintTable(args []string) bool {
+	for _, arg := range args {
+		if arg == "--table" {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintShortList(args []string) bool {
+	for _, arg := range args {
+		if arg == "--short" {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintUniqueOnly(args []string) bool {
+	for _, arg := range args {
+		if arg == "--unique-only" {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintHistogram(args []string) bool {
+	for _, arg := range args {
+		if arg == "--hist" {
+			return true
+		}
+	}
+	return false
+}
+
+func printShortList(buildpackIds [][]string) {
 	commonBeginningBuildpacks := findCommonBeginningElements(buildpackIds)
 	commonEndingBuildpacks := findCommonEndingElements(buildpackIds)
 
@@ -68,6 +165,20 @@ func main() {
 	}
 }
 
+func printTable(buildpackIds [][]string) {
+	var maxColumnSizes []int
+	maxColumnSizes = findMaxColumnSizes(buildpackIds)
+
+	for i, orderGroup := range buildpackIds {
+		fmt.Printf("Order Group %d:", i+1)
+
+		for j, id := range orderGroup {
+			fmt.Printf(" %-*s", maxColumnSizes[j], id)
+		}
+		fmt.Printf("\n")
+	}
+}
+
 func findMaxColumnSizes(buildpackIds [][]string) []int {
 	var result []int
 
@@ -86,14 +197,23 @@ func findMaxColumnSizes(buildpackIds [][]string) []int {
 	return result
 }
 
-func toNestedArray(buildpackDescriptor dist.BuildpackDescriptor) [][]string {
+func toNestedArray(buildpackDescriptor dist.BuildpackDescriptor, requiredOnly bool, uniqueOnly bool) [][]string {
 	var result [][]string
+
+	var alreadySeen []string
 
 	for _, orderGroup := range buildpackDescriptor.Order {
 		var ids []string
 
 		for _, buildpack := range orderGroup.Group {
-			ids = append(ids, strings.TrimPrefix(buildpack.ID, "paketo-buildpacks/"))
+			if !requiredOnly || (requiredOnly && !buildpack.Optional) {
+				id := strings.TrimPrefix(buildpack.ID, "paketo-buildpacks/")
+
+				if !uniqueOnly || (uniqueOnly && !slices.Contains(alreadySeen, id)) {
+					ids = append(ids, id)
+					alreadySeen = append(alreadySeen, id)
+				}
+			}
 		}
 
 		result = append(result, ids)

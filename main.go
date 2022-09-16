@@ -18,12 +18,14 @@ func main() {
 		outputFormat      string
 		uniqueOnly        bool
 		requiredOnly      bool
+		withVersion       bool
 	)
 
 	flag.StringVar(&buildpackTomlPath, "buildpack-toml-path", "", "full path to a meta buildpack's buildpack.toml file (OPTIONAL, default='./buildpack.toml')")
 	flag.StringVar(&outputFormat, "output-format", "", "output format (OPTIONAL, default='short') [table, short, short-json, hist]")
 	flag.BoolVar(&uniqueOnly, "unique-only", false, "only print unique buildpack ids (OPTIONAL, default='false')")
 	flag.BoolVar(&requiredOnly, "required-only", false, "only print required buildpack ids (OPTIONAL, default='false')")
+	flag.BoolVar(&withVersion, "with-version", false, "print buildpack version as well as id (OPTIONAL, default='false')")
 	flag.Parse()
 
 	if buildpackTomlPath == "" {
@@ -47,7 +49,7 @@ func main() {
 		log.Fatalf("Could not decode file %s\n", buildpackTomlPath)
 	}
 
-	buildpackIds := toNestedArray(buildpackDescriptor, requiredOnly, uniqueOnly)
+	buildpackIds := toNestedArray(buildpackDescriptor, requiredOnly, uniqueOnly, withVersion)
 
 	switch outputFormat {
 	case "table":
@@ -196,7 +198,7 @@ func findMaxColumnSizes(buildpackIds [][]string) []int {
 	return result
 }
 
-func toNestedArray(buildpackDescriptor dist.BuildpackDescriptor, requiredOnly bool, uniqueOnly bool) [][]string {
+func toNestedArray(buildpackDescriptor dist.BuildpackDescriptor, requiredOnly, uniqueOnly, withVersion bool) [][]string {
 	var result [][]string
 
 	var alreadySeen []string
@@ -206,7 +208,7 @@ func toNestedArray(buildpackDescriptor dist.BuildpackDescriptor, requiredOnly bo
 
 		for _, buildpack := range orderGroup.Group {
 			if !requiredOnly || (requiredOnly && !buildpack.Optional) {
-				id := strings.TrimPrefix(buildpack.ID, "paketo-buildpacks/")
+				id := toString(buildpack, withVersion)
 
 				if !uniqueOnly || (uniqueOnly && !slices.Contains(alreadySeen, id)) {
 					ids = append(ids, id)
@@ -219,6 +221,22 @@ func toNestedArray(buildpackDescriptor dist.BuildpackDescriptor, requiredOnly bo
 	}
 
 	return result
+}
+
+func toString(buildpack dist.BuildpackRef, withVersion bool) string {
+	version := buildpack.Version
+
+	if version == "" {
+		version = "<UNKNOWN-VERSION>"
+	}
+
+	id := strings.TrimPrefix(buildpack.ID, "paketo-buildpacks/")
+
+	if !withVersion {
+		return id
+	}
+
+	return id + "@" + version
 }
 
 func findCommonBeginningElements(buildpackIds [][]string) []string {

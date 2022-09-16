@@ -95,7 +95,11 @@ func printShortList(buildpackIds [][]string) {
 	commonBeginningBuildpacks := findCommonBeginningElements(buildpackIds)
 	commonEndingBuildpacks := findCommonEndingElements(buildpackIds)
 
-	fmt.Print("Common beginning buildpacks\n")
+	if len(commonEndingBuildpacks) < 1 {
+		fmt.Print("No common beginning buildpacks found\n")
+	} else {
+		fmt.Print("Common beginning buildpacks\n")
+	}
 	for i := 0; i < len(commonBeginningBuildpacks); i++ {
 		fmt.Printf("- %s\n", commonBeginningBuildpacks[i])
 	}

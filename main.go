@@ -132,13 +132,9 @@ type ShortJson struct {
 }
 
 func printShortJsonList(buildpackIds [][]string) {
-	commonBeginningBuildpacks := findCommonBeginningElements(buildpackIds)
-	commonEndingBuildpacks := findCommonEndingElements(buildpackIds)
-
-	shortJson := ShortJson{}
-
-	for i := 0; i < len(commonBeginningBuildpacks); i++ {
-		shortJson.Beginning = append(shortJson.Beginning, commonBeginningBuildpacks[i])
+	shortJson := ShortJson{
+		Beginning: findCommonBeginningElements(buildpackIds),
+		Ending:    findCommonEndingElements(buildpackIds),
 	}
 
 	shortJson.OrderGroups = make([][]string, len(buildpackIds))
@@ -146,19 +142,15 @@ func printShortJsonList(buildpackIds [][]string) {
 	for i, orderGroup := range buildpackIds {
 		shortJson.OrderGroups[i] = make([]string, 0)
 		for j, id := range orderGroup {
-			if j < len(commonBeginningBuildpacks) {
+			if j < len(shortJson.Beginning) {
 				continue
 			}
 			leftToGo := len(orderGroup) - j
-			if leftToGo <= len(commonEndingBuildpacks) && id == commonEndingBuildpacks[leftToGo-1] {
+			if leftToGo <= len(shortJson.Ending) && id == shortJson.Ending[leftToGo-1] {
 				continue
 			}
 			shortJson.OrderGroups[i] = append(shortJson.OrderGroups[i], id)
 		}
-	}
-
-	for i := len(commonEndingBuildpacks) - 1; i >= 0; i-- {
-		shortJson.Ending = append(shortJson.Ending, commonEndingBuildpacks[i])
 	}
 
 	shortJsonString, err := json.MarshalIndent(shortJson, "", "  ")

@@ -45,6 +45,8 @@ func main() {
 		printShortList(buildpackIds)
 	case "hist":
 		printHistogram(buildpackIds)
+	default:
+		log.Fatalf("--output-format not recognized")
 	}
 }
 

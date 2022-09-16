@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -12,44 +12,49 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || shouldPrintHelp(os.Args) {
-		fmt.Println(`The first parameter must be the filepath of a buildpack.toml in a meta buildpack.
+	var (
+		buildpackTomlPath string
+		outputFormat      string
+		uniqueOnly        bool
+		requiredOnly      bool
+	)
 
-./order-group-visualizer <path/to/buildpack.toml> <format-option> [modifier-options]
+	flag.StringVar(&buildpackTomlPath, "buildpack-toml-path", "", "full path to a meta buildpack's buildpack.toml file (REQUIRED)")
+	flag.StringVar(&outputFormat, "output-format", "", "output format (REQUIRED) [table, short, hist]")
+	flag.BoolVar(&uniqueOnly, "unique-only", false, "only print unique buildpack ids (OPTIONAL)")
+	flag.BoolVar(&requiredOnly, "required-only", false, "only print required buildpack ids (OPTIONAL)")
+	flag.Parse()
 
-Output formats (select one, REQUIRED):
---table
---short
---hist
+	validate(buildpackTomlPath, outputFormat)
 
-Output modifiers (zero or more, OPTIONAL):
---unique-only
---required-only`)
-		os.Exit(0)
-	}
-
-	buildpackYaml := os.Args[1]
-	fmt.Printf("Will look in file %s\n", buildpackYaml)
+	fmt.Printf("Will look in file %s\n", buildpackTomlPath)
 
 	buildpackDescriptor := dist.BuildpackDescriptor{}
 
-	_, err := toml.DecodeFile(buildpackYaml, &buildpackDescriptor)
+	_, err := toml.DecodeFile(buildpackTomlPath, &buildpackDescriptor)
 	if err != nil {
-		log.Fatalf("Could not decode file %s\n", buildpackYaml)
+		log.Fatalf("Could not decode file %s\n", buildpackTomlPath)
 	}
 
-	buildpackIds := toNestedArray(buildpackDescriptor, shouldPrintRequiredOnly(os.Args), shouldPrintUniqueOnly(os.Args))
+	buildpackIds := toNestedArray(buildpackDescriptor, requiredOnly, uniqueOnly)
 
-	if shouldPrintTable(os.Args) {
+	switch outputFormat {
+	case "table":
 		printTable(buildpackIds)
-	}
-
-	if shouldPrintShortList(os.Args) {
+	case "short":
 		printShortList(buildpackIds)
+	case "hist":
+		printHistogram(buildpackIds)
+	}
+}
+
+func validate(buildpackTomlPath, outputFormat string) {
+	if buildpackTomlPath == "" {
+		log.Fatalf("--buildpack-toml-path is required")
 	}
 
-	if shouldPrintHistogram(os.Args) {
-		printHistogram(buildpackIds)
+	if outputFormat == "" {
+		log.Fatalf("--output-format is required")
 	}
 }
 
@@ -79,60 +84,6 @@ func printHistogram(buildpackIds [][]string) {
 			fmt.Printf("%d: %s\n", i, strings.Join(countToId[i], ", "))
 		}
 	}
-}
-
-func shouldPrintHelp(args []string) bool {
-	for _, arg := range args {
-		if arg == "--help" || arg == "-h" {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldPrintRequiredOnly(args []string) bool {
-	for _, arg := range args {
-		if arg == "--required-only" {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldPrintTable(args []string) bool {
-	for _, arg := range args {
-		if arg == "--table" {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldPrintShortList(args []string) bool {
-	for _, arg := range args {
-		if arg == "--short" {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldPrintUniqueOnly(args []string) bool {
-	for _, arg := range args {
-		if arg == "--unique-only" {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldPrintHistogram(args []string) bool {
-	for _, arg := range args {
-		if arg == "--hist" {
-			return true
-		}
-	}
-	return false
 }
 
 func printShortList(buildpackIds [][]string) {

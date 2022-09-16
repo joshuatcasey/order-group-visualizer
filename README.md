@@ -1,6 +1,5 @@
 # Running
 
 ```shell
-$ go build
-$ ./order-group-visualizer /path/to/buildpack.toml
+$ go build && ./order-group-visualizer --help
 ```

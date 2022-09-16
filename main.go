@@ -20,13 +20,19 @@ func main() {
 		requiredOnly      bool
 	)
 
-	flag.StringVar(&buildpackTomlPath, "buildpack-toml-path", "", "full path to a meta buildpack's buildpack.toml file (REQUIRED)")
-	flag.StringVar(&outputFormat, "output-format", "", "output format (REQUIRED) [table, short, short-json, hist]")
-	flag.BoolVar(&uniqueOnly, "unique-only", false, "only print unique buildpack ids (OPTIONAL)")
-	flag.BoolVar(&requiredOnly, "required-only", false, "only print required buildpack ids (OPTIONAL)")
+	flag.StringVar(&buildpackTomlPath, "buildpack-toml-path", "", "full path to a meta buildpack's buildpack.toml file (OPTIONAL, default='./buildpack.toml')")
+	flag.StringVar(&outputFormat, "output-format", "", "output format (OPTIONAL, default='short') [table, short, short-json, hist]")
+	flag.BoolVar(&uniqueOnly, "unique-only", false, "only print unique buildpack ids (OPTIONAL, default='false')")
+	flag.BoolVar(&requiredOnly, "required-only", false, "only print required buildpack ids (OPTIONAL, default='false')")
 	flag.Parse()
 
-	validate(buildpackTomlPath, outputFormat)
+	if buildpackTomlPath == "" {
+		buildpackTomlPath = "./buildpack.toml"
+	}
+
+	if outputFormat == "" {
+		outputFormat = "short"
+	}
 
 	switch outputFormat {
 	case "short-json":
@@ -57,22 +63,12 @@ func main() {
 	}
 }
 
-func validate(buildpackTomlPath, outputFormat string) {
-	if buildpackTomlPath == "" {
-		log.Fatalf("--buildpack-toml-path is required")
-	}
-
-	if outputFormat == "" {
-		log.Fatalf("--output-format is required")
-	}
-}
-
 func printHistogram(buildpackIds [][]string) {
 	idToCount := make(map[string]int)
 
 	for _, orderGroup := range buildpackIds {
 		for _, id := range orderGroup {
-			idToCount[id] = idToCount[id] + 1
+			idToCount[id]++
 		}
 	}
 

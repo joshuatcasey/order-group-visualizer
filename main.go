@@ -126,7 +126,11 @@ func printTable(buildpackIds [][]string) {
 		fmt.Printf("Order Group %d:", i+1)
 
 		for j, id := range orderGroup {
-			fmt.Printf(" %-*s", maxColumnSizes[j], id)
+			if j == 0 {
+				fmt.Printf(" %-*s", maxColumnSizes[j], id)
+			} else {
+				fmt.Printf(" | %-*s", maxColumnSizes[j], id)
+			}
 		}
 		fmt.Printf("\n")
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -20,14 +21,18 @@ func main() {
 	)
 
 	flag.StringVar(&buildpackTomlPath, "buildpack-toml-path", "", "full path to a meta buildpack's buildpack.toml file (REQUIRED)")
-	flag.StringVar(&outputFormat, "output-format", "", "output format (REQUIRED) [table, short, hist]")
+	flag.StringVar(&outputFormat, "output-format", "", "output format (REQUIRED) [table, short, short-json, hist]")
 	flag.BoolVar(&uniqueOnly, "unique-only", false, "only print unique buildpack ids (OPTIONAL)")
 	flag.BoolVar(&requiredOnly, "required-only", false, "only print required buildpack ids (OPTIONAL)")
 	flag.Parse()
 
 	validate(buildpackTomlPath, outputFormat)
 
-	fmt.Printf("Will look in file %s\n", buildpackTomlPath)
+	switch outputFormat {
+	case "short-json":
+	default:
+		fmt.Printf("Will look in file %s\n", buildpackTomlPath)
+	}
 
 	buildpackDescriptor := dist.BuildpackDescriptor{}
 
@@ -43,6 +48,8 @@ func main() {
 		printTable(buildpackIds)
 	case "short":
 		printShortList(buildpackIds)
+	case "short-json":
+		printShortJsonList(buildpackIds)
 	case "hist":
 		printHistogram(buildpackIds)
 	default:
@@ -116,6 +123,49 @@ func printShortList(buildpackIds [][]string) {
 	for i := len(commonEndingBuildpacks) - 1; i >= 0; i-- {
 		fmt.Printf("- %s\n", commonEndingBuildpacks[i])
 	}
+}
+
+type ShortJson struct {
+	Beginning   []string   `json:"beginning"`
+	Ending      []string   `json:"ending"`
+	OrderGroups [][]string `json:"order_groups"`
+}
+
+func printShortJsonList(buildpackIds [][]string) {
+	commonBeginningBuildpacks := findCommonBeginningElements(buildpackIds)
+	commonEndingBuildpacks := findCommonEndingElements(buildpackIds)
+
+	shortJson := ShortJson{}
+
+	for i := 0; i < len(commonBeginningBuildpacks); i++ {
+		shortJson.Beginning = append(shortJson.Beginning, commonBeginningBuildpacks[i])
+	}
+
+	shortJson.OrderGroups = make([][]string, len(buildpackIds))
+
+	for i, orderGroup := range buildpackIds {
+		shortJson.OrderGroups[i] = make([]string, 0)
+		for j, id := range orderGroup {
+			if j < len(commonBeginningBuildpacks) {
+				continue
+			}
+			leftToGo := len(orderGroup) - j
+			if leftToGo <= len(commonEndingBuildpacks) && id == commonEndingBuildpacks[leftToGo-1] {
+				continue
+			}
+			shortJson.OrderGroups[i] = append(shortJson.OrderGroups[i], id)
+		}
+	}
+
+	for i := len(commonEndingBuildpacks) - 1; i >= 0; i-- {
+		shortJson.Ending = append(shortJson.Ending, commonEndingBuildpacks[i])
+	}
+
+	shortJsonString, err := json.MarshalIndent(shortJson, "", "  ")
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	fmt.Print(string(shortJsonString))
 }
 
 func printTable(buildpackIds [][]string) {
